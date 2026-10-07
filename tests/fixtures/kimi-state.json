@@ -1,0 +1,16 @@
+{
+  "id": "session_123e4567-e89b-12d3-a456-426614174000",
+  "cwd": "/work",
+  "createdAt": 1790856000000,
+  "updatedAt": 1790942400000,
+  "title": "Project review",
+  "agents": {
+    "main": {
+      "type": "main"
+    },
+    "agent-0": {
+      "type": "sub"
+    }
+  },
+  "archived": false
+}

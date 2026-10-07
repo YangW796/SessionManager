@@ -1,0 +1,4 @@
+{"type": "session_meta", "payload": {"id": "123e4567-e89b-12d3-a456-426614174000", "timestamp": "2026-10-01T12:00:00Z", "cwd": "/work", "history_base": null}}
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "# AGENTS.md instructions for /work\nIgnore this preamble"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "检查这个项目，并保留完整的问题。\nSecond line."}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "完整回答。\nI will inspect the project."}]}}

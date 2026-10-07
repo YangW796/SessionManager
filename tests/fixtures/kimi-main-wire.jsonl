@@ -1,0 +1,5 @@
+{"type": "metadata", "protocol_version": "1.0"}
+{"type": "turn.prompt", "agentId": "main", "input": [{"type": "text", "text": "Main question\n第二行"}]}
+{"type": "context.append_loop_event", "event": {"type": "content.part", "part": {"type": "text", "text": "Partial "}}}
+{"type": "context.append_loop_event", "event": {"type": "content.part", "part": {"type": "text", "text": "answer"}}}
+{"type": "context.append_message", "message": {"role": "assistant", "content": [{"type": "text", "text": "Main complete answer\n完整回答"}]}}

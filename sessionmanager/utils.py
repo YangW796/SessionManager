@@ -7,6 +7,33 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+def has_symlink(path: Path) -> bool:
+    return any(part.is_symlink() for part in (path, *path.parents))
+
+
+def file_snapshot(path: Path) -> tuple[int, int, int, int]:
+    stat = path.stat(follow_symlinks=False)
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def walk_files(root: Path) -> Iterable[Path]:
+    """Walk without following directory links, surfacing unreadable directories."""
+    if has_symlink(root):
+        return
+    try:
+        root.stat()
+    except FileNotFoundError:
+        return
+    def onerror(error: OSError) -> None:
+        raise error
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=onerror):
+        dirs[:] = sorted(name for name in dirs if not (Path(directory) / name).is_symlink())
+        for name in sorted(files):
+            path = Path(directory) / name
+            if not path.is_symlink() and path.is_file():
+                yield path
+
+
 def unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     result: list[Path] = []
     seen: set[Path] = set()
@@ -17,17 +44,17 @@ def unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
             absolute = path.absolute()
         except OSError:
             continue
-        if absolute.is_symlink() or absolute in seen or not absolute.is_file():
+        if has_symlink(absolute) or absolute in seen or not absolute.is_file():
             continue
         seen.add(absolute)
         result.append(absolute)
-    return tuple(result)
+    return tuple(sorted(result))
 
 
 def env_roots(name: str, defaults: Iterable[Path]) -> tuple[Path, ...]:
     value = os.environ.get(name)
-    roots = [Path(item).expanduser() for item in value.split(os.pathsep)] if value else list(defaults)
-    return tuple(path for path in roots if path.exists() and path.is_dir())
+    roots = [Path(item).expanduser() for item in value.split(os.pathsep) if item] if value else list(defaults)
+    return tuple(dict.fromkeys(path.absolute() for path in roots))
 
 
 def parse_datetime(value: Any) -> datetime | None:
@@ -50,26 +77,12 @@ def json_object(line: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def first_json_objects(path: Path, limit: int = 32) -> list[dict[str, Any]]:
-    objects: list[dict[str, Any]] = []
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            for index, line in enumerate(handle):
-                if index >= limit:
-                    break
-                item = json_object(line)
-                if item:
-                    objects.append(item)
-    except (OSError, UnicodeError):
-        pass
-    return objects
-
-
 def safe_size(paths: Iterable[Path]) -> int:
     total = 0
     for path in paths:
         try:
-            total += path.stat().st_size
+            if not has_symlink(path):
+                total += path.stat().st_size
         except OSError:
             pass
     return total

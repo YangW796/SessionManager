@@ -9,7 +9,7 @@ from sessionmanager.models import Session
 def test_session_selection_retries_invalid_input():
     sessions = [Session("codex", "id", Path("session"))]
 
-    with patch("builtins.input", side_effect=["invalid", "1,1"]):
+    with patch("builtins.input", side_effect=["invalid", "d 1,1"]):
         assert _select_sessions(sessions) == [0]
 
 
