@@ -78,7 +78,7 @@ def test_negative_project_rejected(storage,rollout,monkeypatch,capsys):
     monkeypatch.setattr(sys.stdin,'isatty',lambda:True)
     with patch('builtins.input',side_effect=['-1','2']):
         assert _select_project([('/a',['a']),('/b',['b']),('/c',['c'])],None,False)==['b']
-    assert 'Invalid project' in capsys.readouterr().err
+    assert '项目编号无效' in capsys.readouterr().err
 
 
 @pytest.mark.parametrize('value',['0','-1','2-1','1,','1,4-2','1-100000000000000000000000000000',''])
@@ -94,10 +94,15 @@ def test_navigation_back_returns_one_level_and_cancel_stays(storage,rollout,monk
     with patch('builtins.input',side_effect=['1','1','0','1','d 1','n','q']) as inputs:
         assert main([])==0
     prompts=[call.args[0] for call in inputs.call_args_list]
-    assert sum(prompt.startswith('Select platform') for prompt in prompts)==1
-    assert sum(prompt.startswith('Project number') for prompt in prompts)==2
-    assert sum(prompt.startswith('Number/v') for prompt in prompts)==3
-    assert path.exists() and 'Cancelled.' in capsys.readouterr().out
+    assert sum(prompt.startswith('选择平台') for prompt in prompts)==1
+    assert sum(prompt.startswith('输入项目编号') for prompt in prompts)==2
+    assert sum(prompt.startswith('输入编号只查看详情') for prompt in prompts)==3
+    output = capsys.readouterr().out
+    assert path.exists() and '已取消，未执行删除' in output
+    assert '交互操作说明' in output and '输入编号只查看详情，不会删除' in output
+    assert '只有确认提示中输入 y 才会永久删除' in output
+    assert any('d 编号选择删除（例如 d 1,3-5）' in prompt for prompt in prompts)
+    assert any('输入 y 执行' in prompt for prompt in prompts)
 
 
 def test_explicit_platform_back_returns_projects(storage,rollout,monkeypatch):
@@ -105,7 +110,7 @@ def test_explicit_platform_back_returns_projects(storage,rollout,monkeypatch):
     monkeypatch.setattr(sys.stdin,'isatty',lambda:True)
     with patch('builtins.input',side_effect=['1','0','q']) as inputs:
         assert main(['--platform','codex'])==0
-    assert sum(call.args[0].startswith('Project number') for call in inputs.call_args_list)==2
+    assert sum(call.args[0].startswith('输入项目编号') for call in inputs.call_args_list)==2
 
 
 def test_successful_delete_refreshes_current_project(storage,rollout,monkeypatch):
@@ -123,8 +128,8 @@ def test_details_search_paging_do_not_delete(storage,rollout,capsys):
         # index 1 is CHILD (later mtime); search SID filters it out, rejecting d 1.
         assert _select_sessions(sessions,page_size=1) is None
     output=capsys.readouterr()
-    assert 'page 2/2' in output.out and 'First prompt:' in output.out
-    assert 'outside the current search' in output.err
+    assert '第 2/2 页' in output.out and '首条提问：' in output.out
+    assert '不在当前搜索结果中' in output.err
     assert a.exists() and b.exists()
 
 
@@ -182,7 +187,7 @@ def test_empty_project_after_delete_returns_project_list(storage,rollout,monkeyp
     monkeypatch.setattr(sys.stdin,'isatty',lambda:True)
     with patch('builtins.input',side_effect=['d 1','y','q']) as inputs:
         assert main(['--platform','codex','--project','/work'])==0
-    assert inputs.call_args_list[-1].args[0].startswith('Project number')
+    assert inputs.call_args_list[-1].args[0].startswith('输入项目编号')
     assert not path.exists()
 
 
@@ -191,4 +196,4 @@ def test_explicit_project_without_platform_is_honored_interactively(storage,roll
     monkeypatch.setattr(sys.stdin,'isatty',lambda:True)
     with patch('builtins.input',side_effect=['1','q']) as inputs:
         assert main(['--project','/work'])==0
-    assert not any(call.args[0].startswith('Project number') for call in inputs.call_args_list)
+    assert not any(call.args[0].startswith('输入项目编号') for call in inputs.call_args_list)

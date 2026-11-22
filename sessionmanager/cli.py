@@ -90,9 +90,9 @@ def _print_platforms(sessions: list[Session], as_json: bool) -> None:
     if as_json:
         _json(rows)
     else:
-        print(" #  SESSIONS  AGENT PLATFORM")
+        print(" #  会话数  平台")
         for index, row in enumerate(rows, 1):
-            print(f"{index:>2}  {row['sessions']:>8}  {row['platform']}")
+            print(f"{index:>2}  {row['sessions']:>6}  {row['platform']}")
 
 
 def _select_platform(sessions: list[Session], as_json: bool) -> str | None:
@@ -100,12 +100,12 @@ def _select_platform(sessions: list[Session], as_json: bool) -> str | None:
     if as_json or not sys.stdin.isatty():
         return None
     while True:
-        answer = _input("Select platform (1=codex, 2=kimi; 0/q/Enter=quit): ")
+        answer = _input("选择平台：输入 1 选择 Codex，输入 2 选择 Kimi；输入 0、q 或直接回车退出：")
         if answer in {"", "0", "q"}:
             return None
         if answer in {"1", "2", "codex", "kimi"}:
             return {"1": "codex", "2": "kimi"}.get(answer, answer)
-        print("Invalid agent platform selection. Please try again.", file=sys.stderr)
+        print("平台选项无效，请输入 1 或 2；输入 0 或回车退出。", file=sys.stderr)
 
 
 def _print_projects(projects: list[tuple[str, list[Session]]], as_json: bool, offset: int = 0) -> None:
@@ -113,9 +113,9 @@ def _print_projects(projects: list[tuple[str, list[Session]]], as_json: bool, of
         _json([{"project": project, "sessions": len(items)} for project, items in projects])
         return
     if not projects:
-        print("No sessions found.")
+        print("没有找到会话。")
         return
-    print(" #  SESSIONS  PROJECT FOLDER")
+    print(" #  会话数  项目目录")
     for index, (project, items) in enumerate(projects, offset + 1):
         print(f"{index:>2}  {len(items):>8}  {_preview(project, 160)}")
 
@@ -145,8 +145,8 @@ def _select_project(projects: list[tuple[str, list[Session]]], project_arg: str 
         pages = max(1, (len(matches) + page_size - 1) // page_size)
         page = min(page, pages - 1)
         _print_projects(matches[page * page_size:(page + 1) * page_size], False, page * page_size)
-        print(f"Projects: page {page + 1}/{pages}; filter: {_preview(query or '(all)')}")
-        answer = _input("Project number; n/p=page, /text=search, /=clear, 0=back, q/Enter=quit: ")
+        print(f"项目列表：第 {page + 1}/{pages} 页；路径筛选：{_preview(query or '（全部）')}")
+        answer = _input("输入项目编号打开该项目；n/p 翻页；/关键词 按路径搜索；/ 清除搜索；0 返回平台选择；q 或回车退出：")
         if answer in {"", "q"}:
             return None
         if answer == "0":
@@ -159,10 +159,10 @@ def _select_project(projects: list[tuple[str, list[Session]]], project_arg: str 
             try:
                 indexes = _indexes(answer, len(matches))
                 if len(indexes) != 1:
-                    raise ValueError("Choose one project")
+                    raise ValueError("一次只能选择一个项目，请输入一个项目编号。")
                 return matches[indexes[0]][1]
             except ValueError:
-                print("Invalid project selection. Please try again.", file=sys.stderr)
+                print("项目编号无效，请输入列表中显示的编号；也可输入 n/p 翻页。", file=sys.stderr)
 
 
 def _print(sessions: list[Session], as_json: bool, indexes: list[int] | None = None) -> None:
@@ -170,16 +170,16 @@ def _print(sessions: list[Session], as_json: bool, indexes: list[int] | None = N
         _json([_data(session) for session in sessions])
         return
     if not sessions:
-        print("No sessions found.")
+        print("这个项目下没有找到会话。")
         return
     width = max(30, shutil.get_terminal_size((100, 24)).columns - 6)
     for index, session in zip(indexes if indexes is not None else range(len(sessions)), sessions):
         updated = session.updated_at.strftime("%Y-%m-%d %H:%M") if session.updated_at else _date(session)
         print(f"{index + 1:>3}  {session.platform} {session.display_id}  {updated} UTC  {_size(session.size)}"
-              + (" [archived]" if session.archived else "") + (" [blocked]" if session.blocked_reasons else ""))
+              + (" [已归档]" if session.archived else "") + (" [禁止删除]" if session.blocked_reasons else ""))
         print(f"     {_preview(session.title or session.prompt or '(untitled)', width)}")
-        print(f"     Q: {_preview(session.prompt, width - 3)}")
-        print(f"     A: {_preview(session.response, width - 3)}")
+        print(f"     提问：{_preview(session.prompt, width - 4)}")
+        print(f"     回复：{_preview(session.response, width - 4)}")
 
 
 def _details(session: Session, as_json: bool = False) -> None:
@@ -187,18 +187,18 @@ def _details(session: Session, as_json: bool = False) -> None:
         _json(_data(session))
         return
     print(f"{session.platform} {session.session_id}")
-    print(f"Project: {_preview(session.cwd, 500)}")
-    print(f"Title: {_preview(session.title, 500)}")
-    print(f"Files: {len(session.files)}; total: {_size(session.size)}")
-    for label, content in (("First prompt", session.prompt), ("First response", session.response)):
-        print(f"{label}:")
+    print(f"项目目录：{_preview(session.cwd, 500)}")
+    print(f"会话标题：{_preview(session.title, 500)}")
+    print(f"会话文件：{len(session.files)} 个；总大小：{_size(session.size)}")
+    for label, content in (("首条提问", session.prompt), ("首条回复", session.response)):
+        print(f"{label}：")
         for line in (content or "-").splitlines():
             print(textwrap.fill("".join(c for c in line if c.isprintable()),
                                 width=max(30, shutil.get_terminal_size((100, 24)).columns)))
     for path in session.files:
         print(f"  {_preview(str(path), 1000)}")
     for reason in session.blocked_reasons:
-        print(f"Blocked: {_preview(reason, 1000)}")
+        print(f"无法安全删除：{_preview(reason, 1000)}")
 
 
 def _indexes(value: str, count: int) -> list[int]:
@@ -206,13 +206,13 @@ def _indexes(value: str, count: int) -> list[int]:
     for item in value.split(","):
         match = re.fullmatch(r"\s*(\d+)(?:\s*-\s*(\d+))?\s*", item)
         if not match:
-            raise ValueError("use numbers or ranges, e.g. 1,3-5")
+            raise ValueError("请输入编号或编号范围，例如 1,3-5。")
         left, right = int(match[1]), int(match[2] or match[1])
         if not 1 <= left <= right <= count:
-            raise ValueError("selection is outside the listed range")
+            raise ValueError("编号超出列表范围，请输入当前列表中显示的编号。")
         result.update(range(left - 1, right))
     if not result:
-        raise ValueError("empty selection")
+        raise ValueError("请至少选择一个编号。")
     return sorted(result)
 
 
@@ -228,8 +228,12 @@ def _select_sessions(sessions: list[Session], page_size: int = 20) -> list[int] 
         page = min(page, pages - 1)
         visible = indexes[page * page_size:(page + 1) * page_size]
         _print([sessions[i] for i in visible], False, visible)
-        print(f"Sessions: page {page + 1}/{pages}; filter: {_preview(query or '(all)')}")
-        answer = _input("Number/v N=details; d 1,3-5=delete; n/p=page, /text=search, /=clear, 0=back, q/Enter=quit: ")
+        print(f"会话列表：第 {page + 1}/{pages} 页；搜索条件：{_preview(query or '（全部）')}")
+        answer = _input(
+            "输入编号只查看详情（不会删除）；输入 v 编号也可查看；"
+            "输入 d 编号选择删除（例如 d 1,3-5）；n/p 翻页；"
+            "/关键词 搜索；/ 清除搜索；0 返回项目列表；q 或回车退出："
+        )
         if answer in {"", "q"}:
             return None
         if answer == "0":
@@ -245,14 +249,14 @@ def _select_sessions(sessions: list[Session], page_size: int = 20) -> list[int] 
         try:
             chosen = _indexes(selection, len(sessions))
             if not set(chosen).issubset(indexes):
-                raise ValueError("selection is outside the current search results")
+                raise ValueError("这个编号不在当前搜索结果中，请输入屏幕上显示的编号。")
             if deleting:
                 return chosen
             if len(chosen) != 1:
-                raise ValueError("view one session, or use d before a deletion selection")
+                raise ValueError("一次只能查看一个会话；要删除多个会话，请在编号前加 d，例如 d 1,3-5。")
             _details(sessions[chosen[0]])
         except ValueError as error:
-            print(f"Invalid selection: {error}. Please try again.", file=sys.stderr)
+            print(f"选择无效：{error} 请重新输入。", file=sys.stderr)
 
 
 def _delete_selected(selected: list[Session], args: argparse.Namespace, inventory: list[Session]) -> int:
@@ -262,23 +266,26 @@ def _delete_selected(selected: list[Session], args: argparse.Namespace, inventor
             "bytes": sum(s.size for s in selected),
             "blockers": [{"platform": key[0], "id": key[1], "reasons": reasons} for key, reasons in blocked.items()]}
     if not args.json:
-        print(f"Selected {len(selected)} session(s), {plan['file_count']} file(s), {_size(plan['bytes'])}.")
+        print(f"准备处理 {len(selected)} 个会话，共 {plan['file_count']} 个文件、{_size(plan['bytes'])}。")
         for session in selected:
             print(f"- {session.platform} {session.session_id} ({_preview(session.title or session.prompt)})")
             for path in session.files:
                 print(f"  {_preview(str(path), 1000)}")
         for reasons in blocked.values():
             for reason in reasons:
-                print(f"Blocked: {_preview(reason, 1000)}", file=sys.stderr)
+                print(f"安全检查未通过，不能删除：{_preview(reason, 1000)}", file=sys.stderr)
     if args.dry_run or blocked:
+        if args.dry_run and not blocked and not args.json:
+            print("这是删除预览：没有删除任何文件。")
         if args.json:
             _json(plan)
         return 1 if blocked else 0
     if not args.yes:
         if args.json or not sys.stdin.isatty():
             return _error("Deletion requires --yes in JSON or non-interactive mode; use --dry-run to review.", args.json)
-        if _input("Delete these files permanently? [y/N] ").lower() not in {"y", "yes"}:
-            print("Cancelled.")
+        print("请核对上方会话和文件清单。确认后将永久删除这些文件，无法撤销。")
+        if _input("确认永久删除？输入 y 执行；输入其他内容或直接回车取消 [y/N]：").lower() not in {"y", "yes"}:
+            print("已取消，未执行删除。")
             return 0
     results = delete_sessions(selected, inventory)
     failed = any(result.failed for result in results)
@@ -291,9 +298,9 @@ def _delete_selected(selected: list[Session], args: argparse.Namespace, inventor
         _json(plan)
     else:
         for result in results:
-            print(f"Deleted {len(result.deleted)} file(s) for {result.session.session_id}.")
+            print(f"会话 {result.session.session_id}：已删除 {len(result.deleted)} 个文件。")
             for path, reason in result.failed:
-                print(f"Could not delete {_preview(str(path), 1000)}: {_preview(reason, 1000)}", file=sys.stderr)
+                print(f"删除失败：{_preview(str(path), 1000)}；原因：{_preview(reason, 1000)}", file=sys.stderr)
     return 1 if failed else 0
 
 
@@ -383,6 +390,17 @@ def _run(args: argparse.Namespace) -> int:
         return 0
     # Explicit navigation state: sessions -> projects -> platforms. Refresh after
     # each action while retaining the platform/project the user is browsing.
+    print(
+        "交互操作说明：\n"
+        "  选择顺序是“平台 → 项目目录 → 会话”；命令行已指定的平台或项目会自动跳过对应选择。\n"
+        "  平台列表中输入 1 选 Codex、2 选 Kimi。项目列表中输入编号进入项目。\n"
+        "  会话列表中，输入编号只查看详情，不会删除；输入 d 编号才会进入删除确认，"
+        "可用逗号或范围批量选择，例如 d 1,3-5。\n"
+        "  删除前会列出会话和将删除的文件；只有确认提示中输入 y 才会永久删除，"
+        "直接回车或输入其他内容都会取消。\n"
+        "  n/p 翻页；/关键词 搜索（项目按路径、会话按 ID/标题/提问/回复）；"
+        "/ 清除搜索；0 返回上一级；q 或直接回车退出。"
+    )
     platform = args.platform
     project = args.project
     exit_code = 0
@@ -403,7 +421,7 @@ def _run(args: argparse.Namespace) -> int:
             project = _project(selection[0])
         sessions = [s for s in platform_sessions if _same_project(_project(s), project)]
         if not sessions:
-            print(f"No sessions found for {_preview(project, 500)}.")
+            print(f"项目 {_preview(project, 500)} 下没有找到会话。")
             project = None
             continue
         selected = _select_sessions(sessions, args.page_size)
