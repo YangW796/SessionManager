@@ -23,7 +23,7 @@ def storage(tmp_path, monkeypatch):
 
 @pytest.fixture
 def rollout():
-    def make(root, sid=SID, base=None, rollout_id=None, cwd='/work', compressed=False):
+    def make(root, sid=SID, base=None, rollout_id=None, cwd='/work', compressed=False, attached_to=None):
         root.mkdir(parents=True, exist_ok=True)
         filename = f'rollout-2026-10-01T12-00-00-{sid}' + (f'_{rollout_id}' if rollout_id else '') + '.jsonl'
         path = root / (filename + ('.zst' if compressed else ''))
@@ -32,7 +32,11 @@ def rollout():
             shutil.copyfile(FIXTURES / 'codex-rollout.jsonl.zst', path)
         else:
             records = [json.loads(line) for line in (FIXTURES / 'codex-rollout.jsonl').read_text().splitlines()]
-            records[0]['payload'].update(id=sid, cwd=cwd, history_base={'thread_id':base,'end_ordinal_exclusive':4,'end_byte_offset':300} if base else None)
+            records[0]['payload'].update(
+                id=sid, cwd=cwd,
+                history_base={'thread_id':base,'end_ordinal_exclusive':4,'end_byte_offset':300} if base else None,
+                forked_from_id=attached_to, attached_thread=attached_to is not None,
+            )
             path.write_text('\n'.join(json.dumps(x,ensure_ascii=False) for x in records)+'\n',encoding='utf-8')
         return path
     return make

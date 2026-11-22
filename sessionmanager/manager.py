@@ -23,6 +23,13 @@ def _key(session: Session) -> tuple[str, str]:
     return session.platform, session.session_id
 
 
+def _references(other: Session, parent: Session) -> bool:
+    return (
+        bool(set(other.history_bases).intersection(parent.rollout_ids))
+        or parent.session_id in other.attached_to
+    )
+
+
 def deletion_blockers(selected: list[Session], inventory: list[Session]) -> dict[tuple[str, str], list[str]]:
     """Validate the whole selection without changing files (also used by dry-run)."""
     selected_keys = {_key(session) for session in selected}
@@ -31,7 +38,7 @@ def deletion_blockers(selected: list[Session], inventory: list[Session]) -> dict
         reasons = list(session.blocked_reasons)
         for other in inventory:
             if other.platform == session.platform and _key(other) not in selected_keys:
-                if set(other.history_bases).intersection(session.rollout_ids):
+                if _references(other, session):
                     reasons.append(f"Referenced by session {other.session_id} ({other.cwd or 'unknown project'})")
         if reasons:
             blocked[_key(session)] = reasons
@@ -40,7 +47,7 @@ def deletion_blockers(selected: list[Session], inventory: list[Session]) -> dict
     while remaining:
         leaves = [s for s in remaining if not any(
             _key(other) != _key(s) and other.platform == s.platform and
-            set(other.history_bases).intersection(s.rollout_ids) for other in remaining)]
+            _references(other, s) for other in remaining)]
         if not leaves:
             for session in remaining:
                 blocked.setdefault(_key(session), []).append("Cyclic history references; deletion refused")
@@ -117,7 +124,7 @@ def delete_sessions(selected: list[Session], inventory: list[Session]) -> list[D
     while remaining:
         session = next(s for s in remaining if not any(
             _key(other) != _key(s) and other.platform == s.platform and
-            set(other.history_bases).intersection(s.rollout_ids) for other in remaining))
+            _references(other, s) for other in remaining))
         results.append(delete_session(session))
         remaining.remove(session)
     return results

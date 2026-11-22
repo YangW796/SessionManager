@@ -92,6 +92,25 @@ def test_cross_project_archived_reference_blocks_parent(storage, rollout):
     assert parent.exists() and child.exists()
 
 
+def test_attached_thread_reference_blocks_parent_and_batch_deletes_child_first(storage, rollout):
+    c, _ = storage
+    parent = rollout(c)
+    child = rollout(c, sid=CHILD, cwd='/another-project', attached_to=SID)
+    inventory = discover('codex')
+    parent_session = next(session for session in inventory if session.session_id == SID)
+    child_session = next(session for session in inventory if session.session_id == CHILD)
+
+    assert child_session.attached_to == (SID,)
+    result = delete_session(parent_session)
+    assert result.failed and 'Referenced by' in result.failed[0][1]
+    assert parent.exists() and child.exists()
+
+    results = delete_sessions([parent_session, child_session], inventory)
+    assert [result.session.session_id for result in results] == [CHILD, SID]
+    assert all(not result.failed for result in results)
+    assert not parent.exists() and not child.exists()
+
+
 def test_reverted_rollout_reference_and_batch_order(storage, rollout):
     c, _ = storage
     old=rollout(c)

@@ -23,6 +23,7 @@ class Session:
     owned_dirs: tuple[Path, ...] = ()
     rollout_ids: tuple[str, ...] = ()
     history_bases: tuple[str, ...] = ()
+    attached_to: tuple[str, ...] = ()
     discovery_roots: tuple[Path, ...] = ()
     blocked_reasons: tuple[str, ...] = ()
     # Device/inode/size/mtime snapshots prevent deleting changed or replaced data.

@@ -72,7 +72,7 @@ SESSIONMANAGER_KIMI_ROOTS=/copy/.kimi-code/sessions sessionmanager --platform ki
 
 Supports `sessions/` and `archived_sessions/`, plain `.jsonl`, compressed `.jsonl.zst`, and reverted-thread filenames containing a separate rollout ID. Recognition requires a rollout filename plus matching valid `session_meta` metadata. UUID substrings in unrelated filenames do not establish ownership. Only validated rollout files and their exact `.jsonl.lock` sidecars enter the deletion set; duplicate plain/compressed copies are grouped.
 
-A standard `sessions` / `archived_sessions` root (or a subdirectory of one) automatically includes its companion tree so archived and cross-project history references cannot be overlooked. `history_base.thread_id` identifies a **rollout ID**, which may differ from the stable session ID after a revert. Sessions referenced by unselected sessions cannot be deleted. A batch deletes dependants before ancestors; a failed dependant continues to protect its ancestor. Cyclic references are refused.
+A standard `sessions` / `archived_sessions` root (or a subdirectory of one) automatically includes its companion tree so archived and cross-project history references cannot be overlooked. `history_base.thread_id` identifies a **rollout ID**, which may differ from the stable session ID after a revert. Attached threads also reference their parent's stable thread ID through `forked_from_id` when `attached_thread` is true. Sessions referenced by unselected sessions cannot be deleted. A batch deletes dependants before ancestors; a failed dependant continues to protect its ancestor. Cyclic references are refused.
 
 Zstandard decoding uses Python 3.14's `compression.zstd`, otherwise the system `libzstd` shared library, otherwise the `zstd` executable. No third-party Python runtime package is required. If no decoder is available, compressed logs are skipped with a diagnostic and Codex deletion is disabled for that scan. The same conservative block applies when candidate rollouts have unreadable/invalid metadata or a history reference cannot be interpreted. Unknown files are never added to the deletion set. Invalid JSONL records are skipped without crashing the scan.
 
@@ -104,9 +104,9 @@ Deletion re-scans the original roots, checks references again, compares the comp
 
 ## Compatibility evidence and tests
 
-The fixtures are synthetic, modeled on Codex **0.160.1** and Kimi Code **2.1.1**. They contain no user session data. Sources:
+The fixtures are synthetic, modeled on Codex **0.171.0** and Kimi Code **2.1.1**. They contain no user session data. Sources:
 
-- [Codex rollout filenames](https://github.com/openai/codex/blob/rust-v0.160.1/codex-rs/rollout/src/rollout_file_name.rs), [compression](https://github.com/openai/codex/blob/rust-v0.160.1/codex-rs/rollout/src/compression.rs), and [history reference index](https://github.com/openai/codex/blob/rust-v0.160.1/codex-rs/rollout/src/rollout_reference_index.rs).
+- [Codex rollout filenames](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/rollout_file_name.rs), [compression](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/compression.rs), and [history/attached-thread reference index](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/rollout_reference_index.rs).
 - [Kimi data locations](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html), [metadata writer](https://github.com/MoonshotAI/kimi-code/blob/f67e6398fb3210ad8ace970e2dfd5bcc984ed61f/packages/migration-legacy/src/sessions/state-writer.ts), and [wire records](https://github.com/MoonshotAI/kimi-code/blob/f67e6398fb3210ad8ace970e2dfd5bcc984ed61f/packages/migration-legacy/src/sessions/turn-structure.ts).
 
 ```bash

@@ -147,6 +147,7 @@ def _merge(old: Session, new: Session) -> Session:
                    owned_dirs=tuple(dict.fromkeys((*old.owned_dirs, *new.owned_dirs))),
                    rollout_ids=tuple(dict.fromkeys((*old.rollout_ids, *new.rollout_ids))),
                    history_bases=tuple(dict.fromkeys((*old.history_bases, *new.history_bases))),
+                   attached_to=tuple(dict.fromkeys((*old.attached_to, *new.attached_to))),
                    blocked_reasons=tuple(dict.fromkeys((*old.blocked_reasons, *new.blocked_reasons))))
 
 
@@ -213,6 +214,13 @@ class CodexProvider(Provider):
                     problems.append(f"Unknown history reference in {path}")
                 else:
                     references = (base_id,)
+            attached_to = ()
+            if metadata.get("attached_thread") is True:
+                parent_id = _uuid(metadata.get("forked_from_id"))
+                if parent_id is None:
+                    problems.append(f"Unknown attached-thread reference in {path}")
+                else:
+                    attached_to = (parent_id,)
             try:
                 prompt, response = _exchange(path)
                 updated = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).replace(tzinfo=None)
@@ -226,6 +234,7 @@ class CodexProvider(Provider):
                               _string(metadata.get("cwd")), _string(metadata.get("title")), files, prompt, response,
                               updated_at=updated, archived="archived_sessions" in path.parts,
                               rollout_ids=(_uuid(match[3] or match[2]),), history_bases=references,
+                              attached_to=attached_to,
                               discovery_roots=self.roots)
             found[sid] = _merge(found[sid], session) if sid in found else session
         if problems:
