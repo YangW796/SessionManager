@@ -179,6 +179,48 @@ def test_kimi_complete_file_set_main_preview_utc_and_deletion(storage, kimi_sess
     assert owner.parent.exists() and global_index.exists()
 
 
+def test_kimi_v2_fork_reference_blocks_parent_and_batch_deletes_child_first(storage, kimi_session):
+    _, k = storage
+    parent = kimi_session(k, sid=SID)
+    child = kimi_session(k, sid=CHILD, workspace_key=f'wm_{CHILD}', prefixed_id=False)
+    child_state = child / 'state.json'
+    metadata = json.loads(child_state.read_text())
+    metadata.update(version=2, forkedFrom=parent.name, lastPrompt='Latest Kimi session metadata')
+    child_state.write_text(json.dumps(metadata, indent=2))
+
+    inventory = discover('kimi')
+    parent_session = next(session for session in inventory if session.session_id == parent.name)
+    child_session = next(session for session in inventory if session.session_id == CHILD)
+
+    assert child_session.attached_to == (parent.name,)
+    result = delete_session(parent_session)
+    assert result.failed and 'Referenced by' in result.failed[0][1]
+    assert (parent / 'state.json').exists() and (child / 'state.json').exists()
+
+    results = delete_sessions([parent_session, child_session], inventory)
+    assert [result.session.session_id for result in results] == [CHILD, parent.name]
+    assert all(not result.failed for result in results)
+    assert not parent.exists() and not child.exists()
+    assert parent.parent.exists() and child.parent.exists()
+
+
+def test_kimi_active_session_lock_blocks_deletion_without_claiming_lock_file(storage, kimi_session):
+    _, k = storage
+    owner = kimi_session(k)
+    lock_root = k.parent / 'locks' / 'sessions'
+    lock_root.mkdir(parents=True)
+    lock = lock_root / f'{owner.name}.lock'
+    lock.write_text('occupied')
+
+    session, = discover('kimi')
+
+    assert session.blocked_reasons == (f'Kimi session lock exists; close Kimi Code before deleting: {lock}',)
+    assert lock not in session.files
+    result = delete_session(session)
+    assert result.failed and (owner / 'state.json').exists()
+    assert lock.exists()
+
+
 def test_kimi_new_task_since_selection_refused(storage,kimi_session):
     _, k=storage;owner=kimi_session(k);session,=discover('kimi')
     (owner/'tasks'/'new.json').write_text('{}')

@@ -44,8 +44,9 @@ def rollout():
 
 @pytest.fixture
 def kimi_session():
-    def make(root, sid=SID):
-        owner = root / 'wd_work_123456789abc' / f'session_{sid}'
+    def make(root, sid=SID, workspace_key='wd_work_123456789abc', prefixed_id=True):
+        session_id = f'session_{sid}' if prefixed_id else sid
+        owner = root / workspace_key / session_id
         owner.mkdir(parents=True)
         metadata = json.loads((FIXTURES / 'kimi-state.json').read_text())
         metadata['id'] = owner.name

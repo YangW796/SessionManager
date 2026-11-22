@@ -81,7 +81,7 @@ Zstandard decoding uses Python 3.14's `compression.zstd`, otherwise the system `
 Targets the Node.js `@moonshot-ai/kimi-code` layout:
 
 ```text
-$KIMI_CODE_HOME/sessions/<workDirKey>/session_<uuid>/
+$KIMI_CODE_HOME/sessions/<workspaceId>/<sessionId>/
   state.json
   agents/main/wire.jsonl
   agents/agent-*/wire.jsonl
@@ -92,7 +92,9 @@ $KIMI_CODE_HOME/sessions/<workDirKey>/session_<uuid>/
   upcoming-goals.json
 ```
 
-Reads the whole `state.json` (including pretty-printed JSON), validates the directory/metadata ID, normalizes millisecond or ISO timestamps to UTC, and reads previews only from `agents/main/wire.jsonl`. Streaming text parts are joined; the complete persisted assistant message is preferred. All regular files inside the validated session directory, including subagent logs, plans, task output, and queued goals, belong to its explicit file set. Only empty owned directories are pruned afterward. Multiple copies of the same ID are grouped, and every copy is shown in the deletion plan.
+Supports current Kimi Code CLI 2.7.x metadata and the older `session_<uuid>` layout. Session directory IDs are validated against `state.json`; both `session_<uuid>` and UUID-only directory names are accepted beneath workspace buckets such as `wd_<slug>_<hash>` and `wm_<uuid>`. Reads the whole `state.json` (including pretty-printed JSON), normalizes millisecond or ISO timestamps to UTC, and reads previews only from `agents/main/wire.jsonl`. Streaming text parts are joined; the complete persisted assistant message is preferred. `forkedFrom` references protect parent sessions and are deleted child-first in a batch.
+
+All regular files inside a validated session directory, including subagent logs, plans, task output, and queued goals, belong to its explicit file set. Active Kimi session locks at `$KIMI_CODE_HOME/locks/sessions/<sessionId>.lock` block deletion but are never included in the file set. The shared `session_index.jsonl`, lock files, and global logs are preserved. Only empty owned session directories are pruned afterward. Multiple copies of the same ID are grouped, and every copy is shown in the deletion plan.
 
 For compatibility, default discovery also examines `~/.kimi/sessions` and `~/.kimi/session` for this validated `session_<uuid>` layout. It does **not** claim support for arbitrary UUID-only directories or the old Python CLI's one-file layouts; migrate those with the official `kimi migrate` command first.
 
@@ -104,10 +106,10 @@ Deletion re-scans the original roots, checks references again, compares the comp
 
 ## Compatibility evidence and tests
 
-The fixtures are synthetic, modeled on Codex **0.171.0** and Kimi Code **2.1.1**. They contain no user session data. Sources:
+The fixtures are synthetic, modeled on Codex **0.171.0** and Kimi Code CLI **2.7.2**. They contain no user session data. Sources:
 
 - [Codex rollout filenames](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/rollout_file_name.rs), [compression](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/compression.rs), and [history/attached-thread reference index](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/rollout/src/rollout_reference_index.rs).
-- [Kimi data locations](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html), [metadata writer](https://github.com/MoonshotAI/kimi-code/blob/f67e6398fb3210ad8ace970e2dfd5bcc984ed61f/packages/migration-legacy/src/sessions/state-writer.ts), and [wire records](https://github.com/MoonshotAI/kimi-code/blob/f67e6398fb3210ad8ace970e2dfd5bcc984ed61f/packages/migration-legacy/src/sessions/turn-structure.ts).
+- [Kimi data locations](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html), [session metadata](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/session/sessionMetadata/sessionMetadata.ts), [session directory mapping](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/workspace/sessionLifecycle/internal/addressing.ts), [session locks](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/persistence/backends/node-fs/sessionLockService.ts), and [CLI package version](https://github.com/MoonshotAI/kimi-code/blob/main/apps/kimi-code/package.json).
 
 ```bash
 python -m pip install -e '.[test]'

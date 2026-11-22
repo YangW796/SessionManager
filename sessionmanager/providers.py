@@ -286,6 +286,13 @@ class KimiProvider(Provider):
         home = Path(os.environ.get("KIMI_CODE_HOME") or Path.home() / ".kimi-code").expanduser()
         self.roots = tuple(path.absolute() for path in roots) if roots is not None else env_roots("SESSIONMANAGER_KIMI_ROOTS", (
             home / "sessions", Path.home() / ".kimi" / "sessions", Path.home() / ".kimi" / "session"))
+        lock_roots = []
+        for root in self.roots:
+            for parent in (root, *root.parents):
+                if parent.name == "sessions":
+                    lock_roots.append(parent.parent / "locks" / "sessions")
+                    break
+        self.lock_roots = tuple(dict.fromkeys(lock_roots))
 
     def discover(self) -> list[Session]:
         found: dict[str, Session] = {}
@@ -293,7 +300,7 @@ class KimiProvider(Provider):
         for root in self.roots:
             try:
                 for path in walk_files(root):
-                    if path.name == "state.json" and path.parent.name.startswith("session_") and _uuid(path.parent.name[8:]):
+                    if path.name == "state.json" and _uuid(path.parent.name.removeprefix("session_")):
                         owners.add(path.parent)
             except OSError as error:
                 warnings.warn(f"Cannot scan {root}: {error}", RuntimeWarning, stacklevel=2)
@@ -310,13 +317,29 @@ class KimiProvider(Provider):
             except (OSError, ValueError) as error:
                 warnings.warn(f"Skipped Kimi session {owner}: {error}", RuntimeWarning, stacklevel=2)
                 continue
+            forked_from = _string(metadata.get("forkedFrom"))
             session = Session(self.name, owner.name, owner, _time(metadata.get("createdAt")),
                               _string(metadata.get("cwd")) or _string(metadata.get("workDir")),
                               _string(metadata.get("title")) or _string(metadata.get("customTitle")), files, prompt, response,
                               updated_at=_time(metadata.get("updatedAt")) or _time(metadata.get("createdAt")),
-                              archived=metadata.get("archived") is True, owned_dirs=(owner,), discovery_roots=self.roots)
+                              archived=metadata.get("archived") is True, owned_dirs=(owner,),
+                              attached_to=(forked_from,) if forked_from else (),
+                              discovery_roots=self.roots,
+                              blocked_reasons=self._lock_blockers(owner.name))
             found[session.session_id] = _merge(found[session.session_id], session) if session.session_id in found else session
         return sort_sessions(_snapshot(session) for session in found.values())
+
+    def _lock_blockers(self, session_id: str) -> tuple[str, ...]:
+        for root in self.lock_roots:
+            path = root / f"{session_id}.lock"
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                return (f"Cannot inspect Kimi session lock {path}: {error}",)
+            return (f"Kimi session lock exists; close Kimi Code before deleting: {path}",)
+        return ()
 
 
 def providers(selected: str = "all") -> list[Provider]:
