@@ -218,6 +218,48 @@ def test_unknown_files_and_bad_records_do_not_crash(storage,rollout):
     assert junk not in session.files and session.blocked_reasons
 
 
+def test_empty_codex_rollout_is_removed_without_blocking_deletion(storage, rollout):
+    c, _ = storage
+    valid = rollout(c)
+    empty = c / f'rollout-2026-10-02T12-00-00-{CHILD}.jsonl'
+    empty.touch()
+
+    session, = discover('codex')
+
+    assert not empty.exists()
+    assert not session.blocked_reasons
+    assert not delete_session(session).failed
+    assert not valid.exists()
+
+
+def test_empty_codex_rollout_with_lock_is_preserved_and_blocks_deletion(storage, rollout):
+    c, _ = storage
+    valid = rollout(c)
+    empty = c / f'rollout-2026-10-02T12-00-00-{CHILD}.jsonl'
+    empty.touch()
+    Path(str(empty) + '.lock').touch()
+
+    with pytest.warns(RuntimeWarning, match='Empty rollout has a lock file'):
+        session, = discover('codex')
+
+    assert empty.exists()
+    assert session.blocked_reasons
+    with pytest.warns(RuntimeWarning, match='Empty rollout has a lock file'):
+        assert delete_session(session).failed
+    assert valid.exists()
+
+
+def test_empty_codex_file_with_invalid_rollout_timestamp_is_preserved(storage, rollout):
+        c, _ = storage
+        rollout(c)
+        invalid = c / f'rollout-2026-99-99T99-99-99-{CHILD}.jsonl'
+        invalid.touch()
+
+        discover('codex')
+
+        assert invalid.exists()
+
+
 def test_kimi_invalid_timestamp_is_ignored(storage,kimi_session):
     _, k=storage;owner=kimi_session(k)
     state=json.loads((owner/'state.json').read_text());state['createdAt']=1e100;state['updatedAt']='bad'

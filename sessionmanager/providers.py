@@ -137,6 +137,41 @@ def _snapshot(session: Session) -> Session:
     return replace(session, snapshots=tuple(snapshots), blocked_reasons=tuple(blockers))
 
 
+def _discard_empty_rollout(path: Path, problems: list[str]) -> bool:
+    try:
+        snapshot = file_snapshot(path)
+    except FileNotFoundError:
+        return True
+    except OSError as error:
+        problems.append(f"Cannot inspect rollout {path}: {error}")
+        return True
+    if snapshot[2] != 0:
+        return False
+
+    plain = Path(str(path).removesuffix(".zst"))
+    lock = Path(str(plain) + ".lock")
+    try:
+        lock.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        problems.append(f"Cannot inspect rollout lock {lock}: {error}")
+        return True
+    else:
+        problems.append(f"Empty rollout has a lock file; deletion disabled: {path}")
+        return True
+
+    try:
+        if file_snapshot(path) != snapshot:
+            return False
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        problems.append(f"Cannot remove empty rollout {path}: {error}")
+    return True
+
+
 def _merge(old: Session, new: Session) -> Session:
     return replace(old, started_at=old.started_at or new.started_at,
                    updated_at=max(filter(None, (old.updated_at, new.updated_at)), default=None),
@@ -187,6 +222,8 @@ class CodexProvider(Provider):
                     datetime.strptime(match[1], "%Y-%m-%dT%H-%M-%S")
                 except ValueError:
                     continue
+            if _discard_empty_rollout(path, problems):
+                continue
             records = _records(path)
             metadata = None
             try:
